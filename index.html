@@ -269,7 +269,7 @@ const PATH_INFO = {
 
 /* ============================================================================
    ROSTER DATABASE
-   [id, name, element, star, path, animKey, quote, projStyle, emblem, hairCol, outfitCol, gachaObtainable]
+   [id, name, element, star, path, animKey, quote, projStyle, emblem, hairCol, outfitCol, rollObtainable]
    ============================================================================ */
 const ROSTER = [
   // 3-Star Pool (75.0%)
@@ -362,8 +362,8 @@ const ROSTER = [
 ];
 
 // Ascension Definitions:
-// type "promote": raises base star rating (5★ -> 6★, or 6★ -> 7★) and joins that gacha star tier!
-// type "transform": transforms Tingyun (4★) into Fugue (6★) and unlocks Fugue in the 6★ gacha pool!
+// type "promote": raises base star rating (5★ -> 6★, or 6★ -> 7★) and joins that roll star tier!
+// type "transform": transforms Tingyun (4★) into Fugue (6★) and unlocks Fugue in the 6★ roll pool!
 const ASCENSION_RULES = [
   { id:"ting_to_fugue", type:"transform", fromId:"ting", toId:"fugue", targetStar:6, cost:2400, label:"Tingyun (4★) → Fugue (6★ Nihility)" },
   { id:"dhil_7", type:"promote", fromId:"dhil", toId:"dhil", targetStar:7, cost:3600, label:"Dan Heng • Imbibitor Lunae (6★ → 7★ 3-Mode)" },
@@ -592,7 +592,7 @@ let S = {
   jade: 3200,
   own: {},
   ascendedStar: {}, // { charId: 6 or 7 }
-  unlockedGacha: {}, // { fugue: true } once transformed
+  unlockedroll: {}, // { fugue: true } once transformed
   pity: 0,
   pity5: 0,
   cp: {}, // character points per character
@@ -655,10 +655,10 @@ const effStar = id => {
   return c[3];
 };
 
-const isGachaObtainable = id => {
+const isrollObtainable = id => {
   const c = ch(id);
   if(!c) return false;
-  if(c[11] === false && !(S.unlockedGacha && S.unlockedGacha[id])) return false;
+  if(c[11] === false && !(S.unlockedroll && S.unlockedroll[id])) return false;
   return true;
 };
 
@@ -779,7 +779,7 @@ function renderCharacterSVG(id){
 const card = (id, extra="") => {
   const c = ch(id);
   const st = effStar(id);
-  const isAsc = st !== 1 && st > c[3] || (id === "fugue" && S.unlockedGacha && S.unlockedGacha.fugue);
+  const isAsc = st !== 1 && st > c[3] || (id === "fugue" && S.unlockedroll && S.unlockedroll.fugue);
   const starsTxt = "★".repeat(st) + ` ${st}★`;
   const cls = st >= 7 ? "r7 ff" : "r" + st;
   return `<div class="card ${cls}">
@@ -854,13 +854,13 @@ function dismissTitleScreen(){
 }
 
 /* ============================================================================
-   EXACT GACHA RATES & DYNAMIC ASCENDED POOL ENTRY
+   EXACT roll RATES & DYNAMIC ASCENDED POOL ENTRY
    3★: 75.0% | 4★: 15.0% | 5★: 7.5% | 6★: 2.4% | 7★ (Firefly + 7★ Ascended): 0.1%
    ============================================================================ */
-function getGachaPoolByStar(targetStar){
+function getrollPoolByStar(targetStar){
   return ROSTER.filter(c => {
     const id = c[0];
-    if(!isGachaObtainable(id)) return false;
+    if(!isrollObtainable(id)) return false;
     const s = effStar(id);
     return s === targetStar || (targetStar === 3 && s === 1);
   });
@@ -869,7 +869,7 @@ function getGachaPoolByStar(targetStar){
 function roll(){
   // 8★ 0.001% | 7★ 0.01% | 6★ 0.99% (hard pity 250) | 5★ 4% (guaranteed every 50 pulls) | 4★ 10% | 3★ 84.999%
   const r = Math.random() * 100;
-  const pick = star => { const pool = getGachaPoolByStar(star); if(!pool.length) return star > 3 ? pick(star - 1) : "stelle"; return pool[Math.floor(Math.random() * pool.length)][0]; };
+  const pick = star => { const pool = getrollPoolByStar(star); if(!pool.length) return star > 3 ? pick(star - 1) : "stelle"; return pool[Math.floor(Math.random() * pool.length)][0]; };
   if(r < 0.001){
     S.pity = 0; S.pity5 = 0;
     if(!S.ascendedStar.ff || S.ascendedStar.ff < 8){ S.ascendedStar.ff = 8; }
@@ -1215,7 +1215,7 @@ function redeem(){
     else {
       S.codes.push(v);
       for(const c of ROSTER) S.own[c[0]] = S.own[c[0]] || 1;
-      S.unlockedGacha = S.unlockedGacha || {}; S.unlockedGacha.fugue = true;
+      S.unlockedroll = S.unlockedroll || {}; S.unlockedroll.fugue = true;
       S.admin = true; S.jade = 999999999;
       save();
       msg = "🛠️ Redeemed ADMIN code: every character unlocked and Stellar Jade is now unlimited (∞)!";
@@ -1245,7 +1245,7 @@ function redeem(){
    ============================================================================ */
 function isAscensionCompleted(rule){
   if(rule.type === "transform"){
-    return !!(S.unlockedGacha && S.unlockedGacha[rule.toId]);
+    return !!(S.unlockedroll && S.unlockedroll[rule.toId]);
   }
   if(rule.type === "demote") return !!(S.ascendedStar && S.ascendedStar[rule.fromId] === 1);
   return effStar(rule.fromId) >= rule.targetStar;
@@ -1265,26 +1265,26 @@ async function executeAscension(ruleId){
   S.jade -= rule.cost;
 
   if(rule.type === "transform"){
-    // Tingyun -> Fugue (6★) and Fugue enters the 6★ gacha pull pool!
-    S.unlockedGacha[rule.toId] = true;
+    // Tingyun -> Fugue (6★) and Fugue enters the 6★ roll pull pool!
+    S.unlockedroll[rule.toId] = true;
     S.own[rule.toId] = (S.own[rule.toId] || 0) + 1;
     // Also swap Tingyun in active team if present
     const tIdx = S.team.indexOf(rule.fromId);
     if(tIdx >= 0) S.team[tIdx] = rule.toId;
     save();
-    msg = `✦ ${ch(rule.fromId)[1]} ascended into 6★ ${ch(rule.toId)[1]}! ${ch(rule.toId)[1]} has now joined the 6★ gacha pool!`;
+    msg = `✦ ${ch(rule.fromId)[1]} ascended into 6★ ${ch(rule.toId)[1]}! ${ch(rule.toId)[1]} has now joined the 6★ roll pool!`;
     draw();
     if(!skip) await cine(6, [rule.toId]);
   } else if(rule.type === "demote"){
     S.ascendedStar[rule.fromId] = 1;
-    S.unlockedGacha = S.unlockedGacha || {};
+    S.unlockedroll = S.unlockedroll || {};
     save();
     msg = `${ch(rule.fromId)[1]} was reduced to 1★. They can now only use a basic attack.`;
     draw();
   } else {
     S.ascendedStar[rule.fromId] = rule.targetStar;
     save();
-    msg = rule.targetStar >= 8 ? `Ω ${ch(rule.fromId)[1]} has transcended into her ULTIMATE form! Insane stats, Echo Clones, Phoenix Rebirth, Combustion Aura, Orbital Lance mode & Solar Collapse ult unlocked!` : `✦ ${ch(rule.fromId)[1]} ascended to ${rule.targetStar}★ and joined the ${rule.targetStar}★ gacha pool!`;
+    msg = rule.targetStar >= 8 ? `Ω ${ch(rule.fromId)[1]} has transcended into her ULTIMATE form! Insane stats, Echo Clones, Phoenix Rebirth, Combustion Aura, Orbital Lance mode & Solar Collapse ult unlocked!` : `✦ ${ch(rule.fromId)[1]} ascended to ${rule.targetStar}★ and joined the ${rule.targetStar}★ roll pool!`;
     draw();
     if(!skip) await cine(rule.targetStar, [rule.fromId]);
   }
@@ -4817,8 +4817,8 @@ function battleLoop(ts){
 function drawSummon(a){
   stopBattleLoop();
   const fl = flashR ? `<div class="flash r${flashR}" style="--c:var(--r${flashR})">✦ ✦ ✦</div>` : "";
-  const pool6 = getGachaPoolByStar(6).map(c => c[1]).join(", ");
-  const pool7 = getGachaPoolByStar(7).map(c => c[1]).join(", ");
+  const pool6 = getrollPoolByStar(6).map(c => c[1]).join(", ");
+  const pool7 = getrollPoolByStar(7).map(c => c[1]).join(", ");
 
   a.innerHTML = `
     <div class="hero">
@@ -5189,7 +5189,7 @@ function drawRoster(a){
       <div class="asc-dd-panel">
         <select id="sel-asc">${ascOptions}</select>
         <div class="row" style="justify-content:space-between">
-          <small><b>${selRule.label}</b> · ${owned ? (completed ? "Already Ascended & in Gacha Pool" : "Ready to Ascend") : `Pull ${fromC[1]} first`}</small>
+          <small><b>${selRule.label}</b> · ${owned ? (completed ? "Already Ascended & in roll Pool" : "Ready to Ascend") : `Pull ${fromC[1]} first`}</small>
           ${completed
             ? `<span class="pill">✦ ASCENDED</span>`
             : `<button type="button" class="asc btn-asc" ${canAfford?"":"disabled"}>Ascend (✦ ${selRule.cost})</button>`}
@@ -5316,13 +5316,13 @@ document.addEventListener("keyup", e => {
 const UPDATE_LOG = [
   { v:"v1.5 — Build 6", title:"Eidolons, Campaign & Combat Rebalance", items:[
     "EIDOLON SYSTEM: Duplicate pulls now give Character Points instead of stat boosts. Spend them on 6 Eidolons per character (costs rise each level): E1 +ATK/HP, E2 echo volley + faster skill, E3 stronger heals/shields/buffs, E4 second echo volley + faster dash, E5 big ATK/HP + faster ult charge, E6 Ascendant Ultimate (empowered ult with golden visuals; Firefly Ω also unlocks a SECOND ULTIMATE, key R). Old saves are converted automatically.",
-    "CHARACTER MENU: Tap any owned style to open its menu — stats, Eidolons, Equip/Unequip, and a free Base ⇄ Ascended form switch once an ascension is unlocked (the character moves between its two gacha rarity pools; Eidolons are kept).",
+    "CHARACTER MENU: Tap any owned style to open its menu — stats, Eidolons, Equip/Unequip, and a free Base ⇄ Ascended form switch once an ascension is unlocked (the character moves between its two roll rarity pools; Eidolons are kept).",
     "CAMPAIGN MODE: 7 planets (Herta Station, Jarilo-VI, Xianzhou Luofu, Penacony, Amphoreus, Planarcadia, Cosmic Frontier) with 10 stages each — every stage has a different objective and stage 10 is a planet boss. Battle mode is now ♾ Infinite Mode.",
     "ECONOMY: Jade from battles was cut drastically (kills, stage clears, drops and bosses); harder difficulties now hit much harder and pay a lot more (up to ×4.5 on Nightmare).",
     "ENEMIES: All enemies have much more HP, and bosses now have enormous HP pools (roughly 8–10× a regular enemy).",
     "ULTIMATES: Ult charge is much slower so ults can't be spammed. 6★/7★/8★ ultimates now play a cinematic cut-in that gets more spectacular with rarity (Eidolon VI adds a golden tag).",
     "DASH: Longer cooldowns. 6★ dashes deal slight damage, 7★/8★ dashes deal heavy damage and leave a unique finisher (Ω Phoenix Wake, Storm Leap, Nether Rift, Glitch Clones, Cross Parry, Mirror Encore, Starfall Wake, Ripple Bloom).",
-    "GACHA: Firefly Ω (8★) can be pulled directly at 0.001%; 3★ rate is now 84.999%; 1★ characters live in the 3★ pool.",
+    "roll: Firefly Ω (8★) can be pulled directly at 0.001%; 3★ rate is now 84.999%; 1★ characters live in the 3★ pool.",
     "CUTSCENES: Ω Firefly, Dan Heng IL, Castorice, Silver Wolf LV.999, Yunli, Evanescia, Himeko Nova and Cyrene each have a bespoke cutscene; other 6★ cutscenes were upgraded.",
     "ASCENSION: Evernight, Pearl and Hyacine can ascend to 6★. The ascension list now shows the highest-star ascensions first.",
     "ROLES: Silver Wolf LV.999 is now Elation. Pearl (Elation) gives shields on Skill/Ult; Hyacine (Remembrance) heals and raises the squad's max HP." ]},
@@ -5337,7 +5337,7 @@ const UPDATE_LOG = [
     "ENEMIES: 23 enemy archetypes (5 new: Siege Mortar, Lens Sentinel, Pounce Fiend, Miasma Seeper, Discordant Cantor) re-skinned across 7 Honkai: Star Rail factions — Antimatter Legion, Mara-Struck, Belobog Automata, Memory Zone Memes, Black Tide, Ichor Memosprites and Imaginary — each with their own look and names.",
     "MAPS: All maps are ~2.3× bigger (3400×2300). 7 new maps incl. Planarcadia (new theme), a Mini Dungeon, two Mazes, a Colosseum and a River-Gates map. 13 layout types (mazes, dungeons, colosseum, river gates, plus halls, rings, clusters…) rotate each stage.",
     "CUTSCENES: Rare (5★+) pulls and ascensions now play a full, flashy, path-themed cutscene with custom titles, typed quotes, screen shake and particles.",
-    "GACHA: 6★ pity is now 250; a 5★ is guaranteed every 50 pulls. Gepard (5★ Preservation) added. Mydei, Boothill and Gepard can be demoted to 1★ (basic attack only) from the Ascension menu.",
+    "roll: 6★ pity is now 250; a 5★ is guaranteed every 50 pulls. Gepard (5★ Preservation) added. Mydei, Boothill and Gepard can be demoted to 1★ (basic attack only) from the Ascension menu.",
     "SYNERGIES: 15 new synergies (23 total). Hover or click any synergy badge to see exactly which buffs it grants.",
     "ROSTER: Search bar plus Path, Rarity and Owned-only filters on the Styles tab.",
     "CODES: A hidden ADMIN code was added (unlocks every character + unlimited Stellar Jade).",
@@ -5355,7 +5355,7 @@ const UPDATE_LOG = [
     "New pull rates (7★ 0.01%, 6★ 0.99%, 5★ 4%, 4★ 10%, 3★ 85%).",
     "Reset-progress button, per-character health bars on switch buttons, live stage counter, Preservation shields and Abundance healing on Skill/Ult, refined maps and portrait icons." ]},
   { v:"v1.0 — Official Build 2", title:"Base Game", items:[
-    "Gacha summoning with 3★–7★ styles, ascension menu (Tingyun → Fugue, 5★ → 6★, 6★ → 7★), meta synergies, 12 maps with bosses every 10 stages, difficulty selection and top-down arena combat." ]}
+    "roll summoning with 3★–7★ styles, ascension menu (Tingyun → Fugue, 5★ → 6★, 6★ → 7★), meta synergies, 12 maps with bosses every 10 stages, difficulty selection and top-down arena combat." ]}
 ];
 function showUpdateLog(){
   const root = $("#modal-root");
@@ -5395,7 +5395,7 @@ function openCharMenu(id){
       <button type="button" id="cm-equip" class="${inTeam ? "danger" : "asc"}">${inTeam ? "Unequip from Squad" : (S.team.length >= 4 ? "Squad is full (4/4)" : "Equip to Squad")}</button>
       ${unlockedAsc ? `<button type="button" id="cm-form" class="alt">${form === "asc" ? `⬇ Switch to Base Form (${c[3]}★)` : `⬆ Switch to Ascended Form (${ascStar === 1 ? 1 : ascStar}★)`}</button>` : ""}
     </div>
-    ${unlockedAsc ? `<div class="mu" style="font-size:11.5px;margin-bottom:6px">Ascension unlocked — switching forms is free. Your character moves between the ${form === "asc" ? ascStar : c[3]}★ and ${form === "asc" ? c[3] : ascStar}★ gacha pools. Eidolons are kept in both forms.</div>` : ""}
+    ${unlockedAsc ? `<div class="mu" style="font-size:11.5px;margin-bottom:6px">Ascension unlocked — switching forms is free. Your character moves between the ${form === "asc" ? ascStar : c[3]}★ and ${form === "asc" ? c[3] : ascStar}★ roll pools. Eidolons are kept in both forms.</div>` : ""}
     <h4 style="margin:10px 0 4px;color:#ffd166">Eidolon Upgrades</h4>
     <div class="mu" style="font-size:11.5px;margin-bottom:6px">Pull duplicates of this style to earn Character Points (+${CP_GAIN[baseStarOf(id)] || 1} per copy).</div>
     ${eidRows}
